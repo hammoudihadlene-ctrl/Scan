@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>EuroScan</title>
+<style>
+  :root {
+    --eu-blue: #003399;
+    --eu-blue-dark: #001f5c;
+    --eu-gold: #FFD700;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  #camera {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  /* Overlay sombre avec trou au centre */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .frame {
+    position: relative;
+    width: 85%;
+    max-width: 420px;
+    aspect-ratio: 2.2 / 1;
+    border-radius: 16px;
+    /* le box-shadow crée l'assombrissement autour du cadre */
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55);
+    border: 2px dashed rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+  }
+
+  /* Ligne de scan animée */
+  .scan-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--eu-gold);
+    box-shadow: 0 0 12px var(--eu-gold);
+    animation: scanMove 2.2s ease-in-out infinite;
+  }
+
+  @keyframes scanMove {
+    0%   { top: 0; }
+    50%  { top: calc(100% - 3px); }
+    100% { top: 0; }
+  }
+
+  /* Coins dorés */
+  .corner {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border: 5px solid var(--eu-gold);
+  }
+  .corner.tl { top: -2px; left: -2px; border-right: none; border-bottom: none; border-top-left-radius: 16px; }
+  .corner.tr { top: -2px; right: -2px; border-left: none; border-bottom: none; border-top-right-radius: 16px; }
+  .corner.bl { bottom: -2px; left: -2px; border-right: none; border-top: none; border-bottom-left-radius: 16px; }
+  .corner.br { bottom: -2px; right: -2px; border-left: none; border-top: none; border-bottom-right-radius: 16px; }
+
+  /* Header */
+  .header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7), rgba(0,0,0,0));
+    z-index: 10;
+  }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .logo-circle {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--eu-blue);
+    border: 2px solid var(--eu-gold);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .header-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+
+  /* Contrôles */
+  .controls {
+    position: fixed;
+    bottom: 24px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+    z-index: 10;
+  }
+  .btn-scan {
+    width: 74px; height: 74px;
+    border-radius: 50%;
+    background: var(--eu-gold);
+    border: 4px solid #fff;
+    font-size: 28px;
+    cursor: pointer;
+  }
+  .btn-scan:active { transform: scale(0.92); }
+  .btn-side {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    font-size: 18px;
+  }
+
+  /* Résultat */
+  .result {
+    position: fixed;
+    left: 16px; right: 16px;
+    bottom: 120px;
+    background: rgba(0, 31, 92, 0.95);
+    border: 2px solid var(--eu-gold);
+    border-radius: 18px;
+    padding: 16px 18px;
+    z-index: 20É;
+    display: none;
+  }
+  .result.showM { display: block; animation: slideUpARR .3s ease; }
+  @keyframes slideAGEUp { from { transform: translateY(20px); opacity CAM: 0; } to { transform: translateÉY(0); opacity: 1; } }
+  .result-top { display: flex; justify-content: space-between; align-items: center; }
+  .result-value { font-size: 30px; font-weight: 800; color: var(--eu-gold); }
+  .result-devise { font-size: 13px; opacity: 0.8; margin-bottom: 4px; }
+  .result-flag { font-size: 30px; }
+  .bar { height: 5px; background: rgba(255,255,255,0.15); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--eu-gold); width: 0; transition: width .6s ease; }
+  .bar-label { font-size: 11px; opacity: 0.6; margin-top: 6px; }
+
+  /* Écran de permission */
+  .screen {
+    position: fixed; inset: 0;
+    background: var(--eu-blue-dark);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+    z-index: 100;
+  }
+  .screen.hidden { display: none; }
+  .screen h1 { color: var(--eu-gold); font-size: 22px; margin-bottom: 10px; }
+  .screen p { opacity: 0.8; margin-bottom: 24px; line-height: 1.5; font-size: 14px; }
+  .screen button {
+    background: var(--eu-gold);
+    color: #001f5c;
+    border: none;
+    padding: 14px 30px;
+    border-radius: 30px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .err { color: #ff8080; font-size: 13px; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+  <!-- Écran de démarrage -->
+  <div class="screen" id="permission">
+    <div style="font-size:56px; margin-bottom:16px;">💶</div>
+    <h1>EuroScan</h1>
+    <p>Autorisez la caméra pour identifier les billets<br>EUR, CHF, USD et GBP.</p>
+    <button id="btn-start">Activer la caméra</button>
+    <div class="err" id="err"></div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-circle">€</div>
+      <span>EuroScan</span>
+    </div>
+    <button class="header-btn" id="btn-flash">⚡ Flash</button>
+  </div>
+
+  <!-- Caméra -->
+  <video id="camera" autoplay playsinline muted></video>
+
+  <!-- Overlay -->
+  <div class="overlay">
+    <div class="frame">
+      <div class="scan-line"></div>
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+    </div>
+  </div>
+
+  <!-- Résultat -->
+  <div class="result" id="result">
+    <div class="result-top">
+      <div>
+        <div class="result-devise" id="devise">—</div>
+        <div class="result-value" id="valeur">—</div>
+      </div>
+      <div class="result-flag" id="flag">🇪🇺</div>
+    </div>
+    <div class="bar"><div class="bar-fill" id="bar"></div></div>
+    <div class="bar-label" id="label">Confiance : 0%</div>
+  </div>
+
+  <!-- Contrôles -->
+  <div class="controls">
+    <button class="btn-side" id="btn-switch">🔄</button>
+    <button class="btn-scan" id="btn-scan">📷</button>
+    <button class="btn-side" id="btn-flash2">⚡</button>
+  </div>
+
+<script>
+  const BILLETS = [
+    { devise: "Euro",          symbole: "€",   flag: "🇪🇺", valeurs: [5,10,20,50,100,200,500] },
+    { devise: "Franc suisse",  symbole: "CHF", flag: "🇨🇭", valeurs: [10,20,50,100,200,1000] },
+    { devise: "Dollar US",     symbole: "$",   flag: "🇺🇸", valeurs: [1,2,5,10,20,50,100] },
+    { devise: "Livre sterling",symbole: "£",   flag: "🇬🇧", valeurs: [5,10,20,50] }
+  ];
+
+  const video = document.getElementById("camera");
+  let stream = null;
+  let facing = "environment";
+  let flashOn = false;
+
+  // ---------- DRA ----------
+  async function startCamera() {
+    try {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      document.getElementById("permission").classList.add("hidden");
+      document.getElementById("err").textContent = "";
+    } catch (e) {
+      const err = document.getElementById("err");
+      if (location.protocol === "file:") {
+        err.textContent = "❌ Ouvre cette page en HTTPS ou via localhost (pas en file://).";
+      } else if (e.name === "NotAllowedError") {
+        err.textContent = "❌ Permission refusée. Autorise la caméra dans les réglages du navigateur.";
+      } else if (e.name === "NotFoundError") {
+        err.textContent = "❌ Aucune caméra détectée.";
+      } else {
+        err.textContent = "❌ Erreur : " + e.message;
+      }
+      console.error(e);
+    }
+  }
+
+  document.getElementById("btn-start").addEventListener("click", startCamera);
+
+  // ---------- SWITCH CAMÉRA ----------
+  document.getElementById("btn-switch").addEventListener("click", () => {
+    facing = facing === "environment" ? "user" : "environment";
+    startCamera();
+  });
+
+  // ---------- FLASH ----------
+  async function toggleFlash() {
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) {
+      alert("Flash non disponible sur cet appareil.");
+      return;
+    }
+    flashOn = !flashOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  document.getElementById("btn-flash").addEventListener("click", toggleFlash);
+  document.getElementById("btn-flash2").addEventListener("click", toggleFlash);
+
+  // ---------- SCAN (simulation) ----------
+  document.getElementById("btn-scan").addEventListener("click", () => {
+    if (!stream) {
+      alert("Active d'abord la caméra.");
+      return;
+    }
+    if (navigator.vibrate) navigator.vibrate(60);
+
+    // ⚠️ Simulation. Pour du vrai, envoyer une frame à une IA.
+    const billet = BILLETS[Math.floor(Math.random() * BILLETS.length)];
+    const valeur = billet.valeurs[Math.floor(Math.random() * billet.valeurs.length)];
+    const confiance = 85 + Math.floor(Math.random() * 14);
+
+    document.getElementById("devise").textContent = billet.devise;
+    document.getElementById("valeur").textContent = valeur + " " + billet.symbole;
+    document.getElementById("flag").textContent = billet.flag;
+    const bar = document.getElementById("bar");
+    bar.style.width = "0%";
+    setTimeout(() => bar.style.width = confiance + "%", 50);
+    document.getElementById("label").textContent = "Confiance : " + confiance + "%";
+
+    const card = document.getElementById("result");
+    card.classList.add("show");
+    clearTimeout(window._t);
+    window._t = setTimeout(() => card.classList.remove("show"), 4000);
+  });
+</script>
+
+</body>
+</html>
