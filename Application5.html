@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎬 VideoMaker Web v5</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    min-height: 100vh;
+    padding: 20px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1 {
+    text-align: center;
+    color: #89b4fa;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .container { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: #313244;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+
+  .panel h2 {
+    color: #89b4fa;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #45475a;
+    padding-bottom: 8px;
+  }
+
+  /* ============================================================
+     INPUT FICHIER CACHÉ — méthode fiable sur tous navigateurs
+     Utilise width/height 0 + position fixed au lieu de opacity 0
+     ============================================================ */
+  .hidden-file-input {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .images-container {
+    position: relative;
+    min-height: 180px;
+    background: #1e1e2e;
+    border-radius: 8px;
+    padding: 12px;
+    padding-bottom: 75px;
+  }
+
+  .empty-message {
+    text-align: center;
+    color: #6c7086;
+    padding: 40px 20px;
+    font-size: 0.9em;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .empty-message .big-icon {
+    font-size: 3em;
+    display: block;
+    margin-bottom: 10px;
+    opacity: 0.4;
+  }
+
+  .thumbnails {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .image-card {
+    background: #181825;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+    cursor: grab;
+  }
+
+  .image-card:hover { border-color: #585b70; }
+  .image-card.dragging { opacity: 0.4; }
+
+  .image-card .thumb-wrapper {
+    position: relative;
+    aspect-ratio: 16/9;
+    background: #000;
+  }
+
+  .image-card .thumb-wrapper img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .image-card .order {
+    position: absolute;
+    top: 4px; left: 4px;
+    background: rgba(0,0,0,0.75);
+    color: #89b4fa;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+
+  .image-card .remove {
+    position: absolute;
+    top: 4px; right: 4px;
+    background: #f38ba8;
+    color: #1e1e2e;
+    border: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: bold;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .image-card .caption-input {
+    width: 100%;
+    padding: 6px 8px;
+    background: #313244;
+    color: #cdd6f4;
+    border: none;
+    border-top: 1px solid #45475a;
+    font-size: 0.8em;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    min-height: 32px;
+  }
+
+  .image-card .caption-input::placeholder {
+    color: #6c7086;
+    font-style: italic;
+  }
+
+  /* ============ BOUTON + ============ */
+  .add-image-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #89b4fa;
+    color: #1e1e2e;
+    border: none;
+    font-size: 30px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(137, 180, 250, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding-bottom: 3px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+    z-index: 100;
+    transition: all 0.2s;
+  }
+
+  .add-image-btn:hover {
+    background: #74c7ec;
+    transform: scale(1.1);
+  }
+
+  .add-image-btn:active {
+    transform: scale(0.95);
+  }
+
+  .add-hint {
+    position: absolute;
+    bottom: 26px;
+    right: 80px;
+    color: #6c7086;
+    font-size: 0.75em;
+    font-style: italic;
+    pointer-events: none;
+  }
+
+  .add-hint.hidden { display: none; }
+
+  label {
+    display: block;
+    margin: 12px 0 6px;
+    font-size: 0.9em;
+    color: #a6adc8;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: #89b4fa;
+  }
+
+  input[type="text"], select, textarea {
+    width: 100%;
+    padding: 8px;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-family: inherit;
+  }
+
+  input[type="text"]:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #89b4fa;
+  }
+
+  textarea#videoDescription {
+    resize: vertical;
+    min-height: 70px;
+    line-height: 1.4;
+  }
+
+  .value-display {
+    float: right;
+    color: #89b4fa;
+    font-weight: bold;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 12px;
+    touch-action: manipulation;
+  }
+
+  .btn-primary {
+    background: #a6e3a1;
+    color: #1e1e2e;
+  }
+  .btn-primary:hover:not(:disabled) { background: #94e2d5; }
+  .btn-primary:disabled {
+    background: #585b70;
+    cursor: not-allowed;
+    color: #a6adc8;
+  }
+
+  .btn-danger {
+    background: #f38ba8;
+    color: #1e1e2e;
+    margin-top: 15px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 10px;
+    background: #1e1e2e;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 15px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #89b4fa, #a6e3a1);
+    transition: width 0.3s;
+  }
+
+  .status {
+    margin-top: 10px;
+    font-size: 0.85em;
+    color: #a6adc8;
+    text-align: center;
+    min-height: 20px;
+  }
+
+  #preview {
+    width: 100%;
+    border-radius: 8px;
+    background: #000;
+    display: none;
+    margin-top: 12px;
+  }
+
+  #download-link {
+    display: none;
+    text-align: center;
+    margin-top: 12px;
+    padding: 10px;
+    background: #89b4fa;
+    color: #1e1e2e;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+  }
+
+  .info-box {
+    background: #181825;
+    border-left: 3px solid #89b4fa;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    color: #a6adc8;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  .info-box strong { color: #89b4fa; }
+</style>
+</head>
+<body>
+
+<h1>🎬 VideoMaker Web</h1>
+
+<div class="container">
+
+  <!-- ============ PANNEAU GAUCHE ============ -->
+  <div class="panel">
+    <h2>📸 Images & Légendes</h2>
+
+    <div class="images-container" id="imagesContainer">
+      <div class="empty-message" id="emptyMessage">
+        <span class="big-icon">🖼️</span>
+        Aucune image pour le moment<br>
+        <small>Appuie sur le bouton <strong>+</strong> ou ici pour ouvrir ta galerie</small>
+      </div>
+
+      <div class="thumbnails" id="thumbnails"></div>
+
+      <span class="add-hint" id="addHint">Ouvrir la galerie</span>
+      <button type="button" class="add-image-btn" id="addImageBtn" title="Ouvrir la galerie">+</button>
+    </div>
+
+    <!-- Input caché : méthode CSS fiable -->
+    <input type="file"
+           id="fileInput"
+           class="hidden-file-input"
+           accept="image/*"
+           multiple>
+
+    <button class="btn btn-danger" id="clearBtn" style="display:none">
+      🗑️ Tout supprimer
+    </button>
+  </div>
+
+  <!-- ============ PANNEAU DROITE ============ -->
+  <div class="panel">
+    <h2>⚙️ Paramètres</h2>
+
+    <label>
+      Durée par image <span class="value-display" id="durVal">2.0 s</span>
+    </label>
+    <input type="range" id="duration" min="0.5" max="10" step="0.5" value="2">
+
+    <label>
+      Effet <span class="value-display" id="fxVal">Zoom lent</span>
+    </label>
+    <select id="effect">
+      <option value="none">Aucun</option>
+      <option value="zoomIn" selected>Zoom lent</option>
+      <option value="zoomOut">Zoom arrière</option>
+      <option value="panLeft">Panoramique →</option>
+      <option value="panRight">Panoramique ←</option>
+      <option value="fade">Fondu</option>
+    </select>
+
+    <label>Résolution</label>
+    <select id="resolution">
+      <option value="640x360">640 × 360 (rapide)</option>
+      <option value="854x480">854 × 480</option>
+      <option value="1280x720" selected>1280 × 720 (HD)</option>
+      <option value="1920x1080">1920 × 1080 (Full HD)</option>
+      <option value="1080x1920">1080 × 1920 (Vertical / TikTok)</option>
+    </select>
+
+    <label>Qualité</label>
+    <select id="quality">
+      <option value="2500000">Standard (2.5 Mbps)</option>
+      <option value="5000000" selected>Haute (5 Mbps)</option>
+      <option value="10000000">Très haute (10 Mbps)</option>
+    </select>
+
+    <label>Affichage des légendes</label>
+    <select id="captionStyle">
+      <option value="bottom" selected>En bas (bandeau)</option>
+      <option value="top">En haut (bandeau)</option>
+      <option value="center">Au centre</option>
+      <option value="none">Ne pas afficher</option>
+    </select>
+
+    <label for="videoDescription">📝 Description de la vidéo</label>
+    <textarea id="videoDescription" rows="3"
+              placeholder="Ex : Montage souvenir de nos vacances d'été 2025..."></textarea>
+
+    <label>Affichage de la description</label>
+    <select id="descriptionStyle">
+      <option value="opening" selected>En ouverture (première image)</option>
+      <option value="closing">En fermeture (dernière image)</option>
+      <option value="both">Au début ET à la fin</option>
+      <option value="overlayAll">En permanence (bandeau bas)</option>
+      <option value="none">Ne pas afficher</option>
+    </select>
+
+    <button class="btn btn-primary" id="generateBtn" disabled>
+      🎥 GÉNÉRER LA VIDÉO
+    </button>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="status" id="status">Appuie sur + pour ajouter des images</div>
+
+    <video id="preview" controls playsinline></video>
+    <a id="download-link" download>⬇️ Télécharger la vidéo</a>
+
+    <div class="info-box">
+      <strong>📱 Sur mobile :</strong> le bouton <strong>+</strong> ouvre directement
+      ta galerie photo. Sélectionne une ou plusieurs images, ajoute une légende
+      à chacune, puis génère ta vidéo.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // =====================================================================
+  // ÉTAT GLOBAL
+  // =====================================================================
+  const state = {
+    images: [],
+    rendering: false
+  };
+
+  // =====================================================================
+  // DOM
+  // =====================================================================
+  const $ = id => document.getElementById(id);
+  const imagesContainer  = $('imagesContainer');
+  const addImageBtn      = $('addImageBtn');
+  const fileInput        = $('fileInput');
+  const thumbnails       = $('thumbnails');
+  const emptyMessage     = $('emptyMessage');
+  const addHint          = $('addHint');
+  const clearBtn         = $('clearBtn');
+  const duration         = $('duration');
+  const durVal           = $('durVal');
+  const effect           = $('effect');
+  const fxVal            = $('fxVal');
+  const resolution       = $('resolution');
+  const quality          = $('quality');
+  const captionStyle     = $('captionStyle');
+  const videoDescription = $('videoDescription');
+  const descriptionStyle = $('descriptionStyle');
+  const generateBtn      = $('generateBtn');
+  const progressFill     = $('progressFill');
+  const statusEl         = $('status');
+  const preview          = $('preview');
+  const downloadLink     = $('download-link');
+
+  // =====================================================================
+  // OUVERTURE DE LA GALERIE — UNE SEULE fonction, appelée une seule fois
+  // =====================================================================
+  function openGallery(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Reset AVANT le clic pour garantir qu'une resélection du même fichier
+    // déclenche bien l'événement change
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  // Le bouton "+" : UN SEUL listener
+  addImageBtn.addEventListener('click', openGallery);
+
+  // La zone vide : clic uniquement si aucune image
+  emptyMessage.addEventListener('click', function(e) {
+    if (state.images.length === 0) openGallery(e);
+  });
+
+  // =====================================================================
+  // RÉCEPTION DES FICHIERS
+  // =====================================================================
+  fileInput.addEventListener('change', function(e) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFiles(Array.prototype.slice.call(files));
+    }
+    // Reset après traitement (nécessaire pour re-sélection)
+    // Utilise setTimeout car certains Android annulent sinon
+    setTimeout(function() { fileInput.value = ''; }, 100);
+  });
+
+  // Drag & drop desktop
+  ['dragenter', 'dragover'].forEach(function(evt) {
+    imagesContainer.addEventListener(evt, function(e) {
+      e.preventDefault();
+      imagesContainer.style.outline = '2px dashed #89b4fa';
+    });
+  });
+  ['dragleave', 'drop'].forEach(function(evt) {
+    imagesContainer.addEventListener(evt, function(e) {
+      e.preventDefault();
+      imagesContainer.style.outline = 'none';
+    });
+  });
+  imagesContainer.addEventListener('drop', function(e) {
+    const files = Array.prototype.slice.call(e.dataTransfer.files)
+      .filter(function(f) { return f.type.indexOf('image/') === 0; });
+    if (files.length) handleFiles(files);
+  });
+
+  // =====================================================================
+  // GESTION DES IMAGES
+  // =====================================================================
+  function handleFiles(files) {
+    let loaded = 0;
+    const total = files.length;
+
+    files.forEach(function(file) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = function() {
+        state.images.push({ file: file, url: url, img: img, caption: '' });
+        loaded++;
+        if (loaded === total) {
+          renderThumbnails();
+          updateUI();
+        }
+      };
+
+      img.onerror = function() {
+        console.warn('Image illisible :', file.name);
+        loaded++;
+        if (loaded === total) {
+          renderThumbnails();
+          updateUI();
+        }
+      };
+
+      img.src = url;
+    });
+  }
+
+  function renderThumbnails() {
+    thumbnails.innerHTML = '';
+    emptyMessage.style.display = state.images.length === 0 ? 'block' : 'none';
+    addHint.style.display = state.images.length === 0 ? 'inline' : 'none';
+
+    state.images.forEach(function(item, i) {
+      const card = document.createElement('div');
+      card.className = 'image-card';
+      card.draggable = true;
+      card.dataset.index = i;
+
+      card.innerHTML =
+        '<div class="thumb-wrapper">' +
+          '<img src="' + item.url + '" alt="">' +
+          '<span class="order">' + (i + 1) + '</span>' +
+          '<button class="remove" title="Supprimer" type="button">×</button>' +
+        '</div>' +
+        '<textarea class="caption-input" rows="2" ' +
+          'placeholder="Légende...">' + escapeHtml(item.caption) + '</textarea>';
+
+      card.querySelector('.remove').addEventListener('click', function(e) {
+        e.stopPropagation();
+        removeImage(i);
+      });
+
+      const textarea = card.querySelector('.caption-input');
+      textarea.addEventListener('input', function(e) {
+        state.images[i].caption = e.target.value;
+      });
+      textarea.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+      textarea.addEventListener('touchstart', function(e) { e.stopPropagation(); });
+
+      card.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('text/plain', i);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', function() {
+        card.classList.remove('dragging');
+      });
+      card.addEventListener('dragover', function(e) { e.preventDefault(); });
+      card.addEventListener('drop', function(e) {
+        e.preventDefault();
+        const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (from !== i && !isNaN(from)) reorder(from, i);
+      });
+
+      thumbnails.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"']/g, function(c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+
+  function removeImage(index) {
+    URL.revokeObjectURL(state.images[index].url);
+    state.images.splice(index, 1);
+    renderThumbnails();
+    updateUI();
+  }
+
+  function reorder(from, to) {
+    const item = state.images.splice(from, 1)[0];
+    state.images.splice(to, 0, item);
+    renderThumbnails();
+  }
+
+  clearBtn.addEventListener('click', function() {
+    if (!confirm('Supprimer toutes les images ?')) return;
+    state.images.forEach(function(i) { URL.revokeObjectURL(i.url); });
+    state.images = [];
+    renderThumbnails();
+    updateUI();
+  });
+
+  // =====================================================================
+  // INTERFACE
+  // =====================================================================
+  duration.addEventListener('input', function() {
+    durVal.textContent = parseFloat(duration.value).toFixed(1) + ' s';
+    updateUI();
+  });
+  effect.addEventListener('change', function() {
+    fxVal.textContent = effect.options[effect.selectedIndex].text;
+  });
+
+  function updateUI() {
+    const hasImages = state.images.length > 0;
+    generateBtn.disabled = !hasImages || state.rendering;
+    clearBtn.style.display = hasImages ? 'block' : 'none';
+    if (!state.rendering) {
+      statusEl.textContent = hasImages
+        ? state.images.length + ' image(s) · durée ≈ ' +
+          (state.images.length * parseFloat(duration.value)).toFixed(1) + ' s'
+        : 'Appuie sur + pour ajouter des images';
+    }
+  }
+
+  // =====================================================================
+  // MOTEUR DE RENDU
+  // =====================================================================
+  function setStatus(msg) { statusEl.textContent = msg; }
+  function setProgress(p) { progressFill.style.width = p + '%'; }
+
+  function generateVideo() {
+    if (!state.images.length || state.rendering) return;
+
+    state.rendering = true;
+    generateBtn.disabled = true;
+    preview.style.display = 'none';
+    downloadLink.style.display = 'none';
+    setProgress(0);
+
+    const resParts = resolution.value.split('x');
+    const w = parseInt(resParts[0], 10);
+    const h = parseInt(resParts[1], 10);
+    const fps = 30;
+    const durPerImage = parseFloat(duration.value);
+    const fx = effect.value;
+    const capStyle = captionStyle.value;
+    const bitrate = parseInt(quality.value, 10);
+    const descText = videoDescription.value.trim();
+    const descMode = descriptionStyle.value;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    const stream = canvas.captureStream(fps);
+
+    const mimeType = pickMimeType();
+    if (!mimeType) {
+      alert("Ton navigateur ne supporte pas l'enregistrement vidéo.\nUtilise Chrome ou Edge récent.");
+      state.rendering = false;
+      updateUI();
+      return;
+    }
+
+    const chunks = [];
+    const recorder = new MediaRecorder(stream, {
+      mimeType: mimeType,
+      videoBitsPerSecond: bitrate
+    });
+    recorder.ondataavailable = function(e) {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    const recordingDone = new Promise(function(resolve) {
+      recorder.onstop = function() {
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        preview.src = url;
+        preview.style.display = 'block';
+        downloadLink.href = url;
+        downloadLink.download = 'video_' + Date.now() + '.' +
+          (mimeType.indexOf('webm') !== -1 ? 'webm' : 'mp4');
+        downloadLink.textContent = '⬇️ Télécharger la vidéo (' +
+          (blob.size / 1024 / 1024).toFixed(1) + ' MB)';
+        downloadLink.style.display = 'block';
+        resolve();
+      };
+    });
+
+    recorder.start();
+
+    const lastIndex = state.images.length - 1;
+    let currentIndex = 0;
+
+    function processNextImage() {
+      if (currentIndex >= state.images.length) {
+        // Fin : on attend un peu puis on arrête
+        setTimeout(function() {
+          recorder.stop();
+          recordingDone.then(function() {
+            setProgress(100);
+            setStatus('✅ Vidéo générée avec succès !');
+            state.rendering = false;
+            updateUI();
+          });
+        }, 300);
+        return;
+      }
+
+      const i = currentIndex;
+      const item = state.images[i];
+      const imgStart = performance.now();
+
+      const showOpening = (descMode === 'opening' || descMode === 'both') && i === 0;
+      const showClosing = (descMode === 'closing' || descMode === 'both') && i === lastIndex;
+      const showOverlay = descMode === 'overlayAll';
+
+      setStatus('Rendu image ' + (i + 1) + '/' + state.images.length + '...');
+      setProgress((i / state.images.length) * 100);
+
+      function drawFrame() {
+        const elapsed = (performance.now() - imgStart) / 1000;
+        const t = Math.min(elapsed / durPerImage, 1);
+
+        drawImageWithEffect(ctx, item.img, w, h, fx, t);
+
+        if (capStyle !== 'none' && item.caption.trim()) {
+          drawCaption(ctx, item.caption.trim(), w, h, capStyle);
+        }
+
+        if (descText && (showOpening || showClosing || showOverlay)) {
+          let pos, mul;
+          if (showOverlay) {
+            pos = 'bottom';
+            mul = 0.85;
+          } else {
+            pos = 'center';
+            mul = 1.1;
+          }
+          drawVideoDescription(ctx, descText, w, h, pos, mul);
+        }
+
+        if (elapsed < durPerImage) {
+          requestAnimationFrame(drawFrame);
+        } else {
+          currentIndex++;
+          processNextImage();
+        }
+      }
+
+      drawFrame();
+    }
+
+    processNextImage();
+  }
+
+  // ---------------------------------------------------------------------
+  // Effets
+  // ---------------------------------------------------------------------
+  function drawImageWithEffect(ctx, img, w, h, fx, t) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+
+    const imgRatio = img.width / img.height;
+    const canvasRatio = w / h;
+
+    let baseW, baseH;
+    if (imgRatio > canvasRatio) {
+      baseH = h;
+      baseW = h * imgRatio;
+    } else {
+      baseW = w;
+      baseH = w / imgRatio;
+    }
+
+    let scale = 1;
+    let offsetX = (w - baseW) / 2;
+    let offsetY = (h - baseH) / 2;
+
+    if (fx === 'zoomIn') {
+      scale = 1 + 0.2 * t;
+    } else if (fx === 'zoomOut') {
+      scale = 1.2 - 0.2 * t;
+    } else if (fx === 'panLeft') {
+      offsetX = (w - baseW) / 2 - (baseW * 0.1) + (baseW * 0.2 * t);
+    } else if (fx === 'panRight') {
+      offsetX = (w - baseW) / 2 + (baseW * 0.1) - (baseW * 0.2 * t);
+    } else if (fx === 'fade') {
+      let alpha = 1;
+      if (t < 0.15) alpha = t / 0.15;
+      else if (t > 0.85) alpha = (1 - t) / 0.15;
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    }
+
+    const drawW = baseW * scale;
+    const drawH = baseH * scale;
+    const drawX = (w - drawW) / 2 + (offsetX - (w - baseW) / 2) * scale;
+    const drawY = (h - drawH) / 2 + (offsetY - (h - baseH) / 2) * scale;
+
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------------------------------------------------------------------
+  // Légende individuelle
+  // ---------------------------------------------------------------------
+  function drawCaption(ctx, text, w, h, position) {
+    const fontSize = Math.max(18, Math.floor(h * 0.045));
+    ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const maxWidth = w * 0.85;
+    const lines = wrapText(ctx, text, maxWidth);
+
+    const lineHeight = fontSize * 1.3;
+    const padding = fontSize * 0.6;
+    const boxH = lines.length * lineHeight + padding * 1.4;
+    const boxW = Math.min(maxWidth + padding * 2, w * 0.92);
+
+    let centerY;
+    if (position === 'top') centerY = h * 0.14;
+    else if (position === 'center') centerY = h * 0.5;
+    else centerY = h - boxH / 2 - h * 0.05;
+
+    const x = w / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
+    roundRect(ctx, x - boxW / 2, centerY - boxH / 2, boxW, boxH, 14);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    const startY = centerY - boxH / 2 + padding * 0.7 + lineHeight / 2;
+    lines.forEach(function(line, idx) {
+      ctx.fillText(line, x, startY + idx * lineHeight);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Description de la vidéo
+  // ---------------------------------------------------------------------
+  function drawVideoDescription(ctx, text, w, h, position, sizeMul) {
+    sizeMul = sizeMul || 1;
+    const fontSize = Math.max(22, Math.floor(h * 0.055 * sizeMul));
+    ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const maxWidth = w * 0.82;
+    const lines = wrapText(ctx, text, maxWidth);
+
+    const lineHeight = fontSize * 1.35;
+    const padding = fontSize * 0.8;
+    const boxH = lines.length * lineHeight + padding * 1.6;
+    const boxW = Math.min(maxWidth + padding * 2, w * 0.92);
+
+    let centerY;
+    if (position === 'top') centerY = h * 0.14;
+    else if (position === 'center') centerY = h * 0.5;
+    else centerY = h - boxH / 2 - h * 0.06;
+
+    const x = w / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    roundRect(ctx, x - boxW / 2, centerY - boxH / 2, boxW, boxH, 18);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(137, 180, 250, 0.8)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, x - boxW / 2, centerY - boxH / 2, boxW, boxH, 18);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    const startY = centerY - boxH / 2 + padding * 0.8 + lineHeight / 2;
+    lines.forEach(function(line, idx) {
+      ctx.fillText(line, x, startY + idx * lineHeight);
+    });
+  }
+
+  function wrapText(ctx, text, maxWidth) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let current = '';
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const test = current ? current + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
